@@ -21,15 +21,16 @@ type KeyEx struct {
   X  *big.Int
   Y  *big.Int
 }
-
+//being a one channel client, start the t=true first, then t=false second.
+//First - Key Exchange occurs
+//Second - a chat functionality appears which allows you to send text to the other computer.
 func main() {
-  var rOrD = flag.Bool("t", true, "Stipulate t=false for one end of chat")
+  var rOrD = flag.Bool("t", true, "Stipulate t=false for one end of chat")//rOrD = Receive or Dial
   var otherIP = flag.String("ip", "127.0.0.1", "Stipulate the IP of the partner")
   var port = flag.String("port", ":8889", "Stipulate the Port to communicate on")  //":####"
   flag.Parse()
 
   key, connection := keyExchange(*otherIP, *port, *rOrD)
-//  startChat(*otherIP, *port, *rOrD, key)
   startChat(*otherIP, *port, *rOrD, key, connection)
 }
 func keyExchange(otherIP, port string, rOrD bool) ([]byte, net.Conn) {
@@ -112,6 +113,8 @@ func startListen(port string, key []byte, connection net.Conn) error {
 
 func startSend(otherIP, port string, key []byte, connection net.Conn) error {
   for {
+//I think there is a possible race condition here    
+//I wasn't sure how to fix this, so I just made the chat 'single channel'
     readerStdIn := bufio.NewReader(os.Stdin)
     fmt.Print("Text to send: ")
     text, _ := readerStdIn.ReadString('\n')
@@ -120,7 +123,6 @@ func startSend(otherIP, port string, key []byte, connection net.Conn) error {
     ciphertext, _ := bufio.NewReader(connection).ReadBytes('\n')
     fmt.Printf("Recieved Back : %x\n", ciphertext)
     fmt.Println("Decoded to: %s", decode(ciphertext[:len(ciphertext)-1], key))
-//I think there is a possible race condition here    
     message, _ := bufio.NewReader(connection).ReadString('\n')
     fmt.Print("Message Received:", string(message))
     response := encode(key, string(message))
@@ -133,6 +135,7 @@ func startSend(otherIP, port string, key []byte, connection net.Conn) error {
 
 func encode(key []byte, message string) []byte {
 	nonce, _ := hex.DecodeString("64a9433eae7ccceee2fc0eda")//using single nonce in v1 to avoid race condition
+  //I am aware of how to fix this -> make a struct that contains encoded message and nonce, use gob to encode and decode to send across network so that you can have a new nonce for every message, thus preventing replay attacks.  I'm just not up to it right now.  
 	plaintext := []byte(message)
 
 	block, err := aes.NewCipher(key)
